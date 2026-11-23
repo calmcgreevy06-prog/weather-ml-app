@@ -1,0 +1,40 @@
+
+---
+- name: Deploy Weather ML Application to Kubernetes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Deploy weather application
+      ansible.builtin.command:
+        cmd: kubectl apply -f {{ playbook_dir }}/../kubernetes/deployment.yml
+
+    - name: Create Kubernetes Service
+      ansible.builtin.command:
+        cmd: kubectl apply -f {{ playbook_dir }}/../kubernetes/service.yml
+
+    - name: Wait for deployment to become ready
+      ansible.builtin.command:
+        cmd: kubectl rollout status deployment/weather-ml-app --timeout=180s
+      changed_when: false
+
+    - name: Check running Pods
+      ansible.builtin.command:
+        cmd: kubectl get pods
+      register: pods
+      changed_when: false
+
+    - name: Display Pods
+      ansible.builtin.debug:
+        var: pods.stdout_lines
+
+    - name: Check Kubernetes Service
+      ansible.builtin.command:
+        cmd: kubectl get services
+      register: services
+      changed_when: false
+
+    - name: Display Services
+      ansible.builtin.debug:
+        var: services.stdout_lines
