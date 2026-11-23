@@ -1,0 +1,32 @@
+
+---
+- name: Install and Start Minikube
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Download Minikube
+      become: true
+      ansible.builtin.get_url:
+        url: https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+        dest: /usr/local/bin/minikube
+        mode: '0755'
+
+    - name: Check existing Minikube status
+      ansible.builtin.command: minikube status
+      register: minikube_status
+      failed_when: false
+      changed_when: false
+
+    - name: Start Minikube using Docker
+      ansible.builtin.command:
+        cmd: minikube start --driver=docker --cpus=2 --memory=4096
+      when: minikube_status.rc != 0
+
+    - name: Verify Minikube
+      ansible.builtin.command: minikube status
+      changed_when: false
+
+    - name: Verify Kubernetes node
+      ansible.builtin.command: kubectl get nodes
+      changed_when: false
