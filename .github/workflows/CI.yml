@@ -14,6 +14,11 @@ jobs:
   build-test-push:
     runs-on: self-hosted   # Build Server runner
 
+    # Project files live in the Weather-ML-CICD-Incomplete/ folder of the repo
+    defaults:
+      run:
+        working-directory: Weather-ML-CICD-Incomplete
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
