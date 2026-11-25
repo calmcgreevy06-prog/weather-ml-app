@@ -1,0 +1,55 @@
+name: CD
+
+# Runs automatically after the CI workflow finishes
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: weather-ml-app
+  DEPLOYMENT_NAME: weather-ml-app     # change to match Operations' deployment name
+  CONTAINER_NAME: weather-ml-app      # change to match the container name in the deployment
+
+jobs:
+  deploy:
+    # Only deploy builds that passed CI
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: [self-hosted, production]   # runner on the Production Server
+
+    steps:
+      # Check out the exact commit that CI built and tested
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Read the image tag from CI.yml so CI and CD always agree
+      - name: Get image tag from CI.yml
+        run: |
+          TAG=$(grep -E '^\s*IMAGE_TAG:' .github/workflows/CI.yml | head -n1 | awk '{print $2}')
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+          echo "Deploying tag: $TAG"
+
+      # Optional (bonus): apply Kubernetes manifests kept in the repo
+      - name: Apply Kubernetes manifests
+        run: |
+          if [ -d k8s ]; then
+            kubectl apply -f k8s/
+          else
+            echo "No k8s/ folder found, skipping"
+          fi
+
+      # Rolling update: replaces pods gradually so the service stays up
+      - name: Rolling update to new image
+        run: |
+          kubectl set image deployment/${{ env.DEPLOYMENT_NAME }} \
+            ${{ env.CONTAINER_NAME }}=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+      # Wait until every new pod is ready (fails the job if the rollout fails)
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} --timeout=120s
+          kubectl get pods
+          kubectl get service
