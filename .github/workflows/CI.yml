@@ -14,10 +14,6 @@ jobs:
   build-test-push:
     runs-on: self-hosted   # Build Server runner
 
-    defaults:
-      run:
-        working-directory: weather-ml-app
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
