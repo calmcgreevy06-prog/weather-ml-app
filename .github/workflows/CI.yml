@@ -1,0 +1,68 @@
+name: CI
+
+# (a) Detect changes to the GitHub repository
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: weather-ml-app
+  IMAGE_TAG: v1            # change to v2 for the video demo
+
+jobs:
+  build-test-push:
+    runs-on: self-hosted   # Build Server runner
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # (b) Install Flask and dependencies in requirements.txt
+      - name: Install dependencies
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # (c) Run each test file in its own step, in order
+      - name: Smoke test
+        run: |
+          . .venv/bin/activate
+          python -m unittest smoke_test -v
+
+      - name: Unit test
+        run: |
+          . .venv/bin/activate
+          python -m unittest unit_test -v
+
+      - name: Integration test
+        run: |
+          . .venv/bin/activate
+          python -m unittest integration_test -v
+
+      # (d) Build a Docker image from the Dockerfile
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+
+      # (e) Build test: launch a container and run a command inside it
+      - name: Build test - launch container
+        run: |
+          docker run -d --name build-test ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          sleep 10
+          docker ps --filter "name=build-test"
+          docker exec build-test python --version
+
+      - name: Clean up test container
+        if: always()
+        run: docker rm -f build-test || true
+
+      # (f) Push the image to DockerHub
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Push image to DockerHub
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
