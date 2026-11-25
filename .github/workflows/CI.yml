@@ -14,6 +14,9 @@ jobs:
   build-test-push:
     runs-on: self-hosted   # Build Server runner
 
+    env:
+      PYTHONPATH: ${{ github.workspace }}/Weather-ML-CICD-Incomplete
+
     # Project files live in the Weather-ML-CICD-Incomplete/ folder of the repo
     defaults:
       run:
@@ -35,17 +38,17 @@ jobs:
       - name: Smoke test
         run: |
           . .venv/bin/activate
-          python -m unittest smoke_test -v
+          python -m unittest discover -s tests -p "smoke_test.py" -v
 
       - name: Unit test
         run: |
           . .venv/bin/activate
-          python -m unittest unit_test -v
+          python -m unittest discover -s tests -p "unit_test.py" -v
 
       - name: Integration test
         run: |
           . .venv/bin/activate
-          python -m unittest integration_test -v
+          python -m unittest discover -s tests -p "integration_test.py" -v
 
       # (d) Build a Docker image from the Dockerfile
       - name: Build Docker image
