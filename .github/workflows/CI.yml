@@ -8,7 +8,7 @@ on:
 
 env:
   IMAGE_NAME: weather-ml-app
-  IMAGE_TAG: v1            # change to v2 for the video demo
+  IMAGE_TAG: v2            # change to v2 for the video demo
 
 jobs:
   build-test-push:
