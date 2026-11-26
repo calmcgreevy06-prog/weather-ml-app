@@ -20,6 +20,6 @@ spec:
     spec:
       containers:
         - name: weather-ml-app
-          image: cal7m7/weather-ml-app:v1
+          image: cal7m7/weather-ml-app:v2
           ports:
             - containerPort: 5000
