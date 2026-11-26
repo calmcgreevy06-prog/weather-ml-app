@@ -1,23 +1,23 @@
 name: CI
 
-# (a) Detect changes to the GitHub repository
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
   IMAGE_NAME: weather-ml-app
-  IMAGE_TAG: v2            # change to v2 for the video demo
+  IMAGE_TAG: v2
 
 jobs:
-  build-test-push:
-    runs-on: self-hosted   # Build Server runner
+  test-and-build:
+    runs-on: self-hosted
 
     env:
       PYTHONPATH: ${{ github.workspace }}/Weather-ML-CICD-Incomplete
 
-    # Project files live in the Weather-ML-CICD-Incomplete/ folder of the repo
     defaults:
       run:
         working-directory: Weather-ML-CICD-Incomplete
@@ -26,59 +26,58 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # (b) Install Flask and dependencies in requirements.txt
-      - name: Install dependencies
+      - name: Create virtual environment
         run: |
           rm -rf $RUNNER_TEMP/venv
           python3 -m venv $RUNNER_TEMP/venv
+
+      - name: Install dependencies
+        run: |
           . $RUNNER_TEMP/venv/bin/activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # (c) Run each test file in its own step, in order
-      - name: Smoke test
+      - name: Run Smoke Tests
         run: |
           . $RUNNER_TEMP/venv/bin/activate
           python -m unittest discover -s tests -p "smoke_test.py" -v
 
-      - name: Unit test
+      - name: Run Unit Tests
         run: |
           . $RUNNER_TEMP/venv/bin/activate
           python -m unittest discover -s tests -p "unit_test.py" -v
 
-      - name: Integration test
+      - name: Run Integration Tests
         run: |
           . $RUNNER_TEMP/venv/bin/activate
           python -m unittest discover -s tests -p "integration_test.py" -v
 
-      # (d) Build a Docker image from the Dockerfile
-      - name: Build Docker image
+      - name: Login to DockerHub
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login \
+          -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # (e) Build test: launch a container and run a command inside it
-      - name: Build test - launch container
+      - name: Build Docker Image
         run: |
-          docker run -d --name build-test ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker build \
+          -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+
+      - name: Verify Docker Image
+        run: |
+          docker run -d --name build-test \
+          ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
           sleep 10
-          docker ps --filter "name=build-test"
           docker exec build-test python --version
 
-      - name: Clean up test container
-        if: always()
-        run: docker rm -f build-test || true
-
-      # (f) Push the image to DockerHub
-      - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Push image to DockerHub
+      - name: Push Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker push \
+          ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
-      - name: Clean up Docker
+      - name: Cleanup
         if: always()
         run: |
+          docker rm -f build-test || true
           docker image prune -f
           docker builder prune -f
-          df -h /
